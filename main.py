@@ -7,6 +7,7 @@ import sqlite3
 DB_NAME = "lists.db"
 TASKS_TABLE_NAME = "tasks"
 LISTS_TABLE_NAME = "lists"
+CURRENT_ID = 0
 
 
 class CheckList(QMainWindow):
@@ -17,10 +18,15 @@ class CheckList(QMainWindow):
         self.btn_create_list.clicked.connect(self.create_list)
 
     def create_list(self):
-        self.creation = ListCreation()
-        self.creation.exec()
+        try:
+            self.creation = ListCreation()
+            self.creation.exec()
+
+        except Exception as x:
+            print(x)
 
     def update_table(self):
+        global CURRENT_ID
         current_row = 0
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
@@ -31,16 +37,18 @@ class CheckList(QMainWindow):
                 self.tableWidget.insertRow(current_row)
             self.tableWidget.setItem(current_row, 0, QTableWidgetItem(name))
             current_row += 1
+        CURRENT_ID = max([elem[0] for elem in cur.execute(f'SELECT ID from {LISTS_TABLE_NAME}')]) + 1
 
 
 class ListCreation(QDialog):
     def __init__(self):
         super().__init__()
+        self.list_id = CURRENT_ID
         uic.loadUi("creation.ui", self)
         self.update_table()
         self.btn_add_task.clicked.connect(self.save_task)
+        self.btn_save_list.clicked.connect(self.save_list)
         self.btn_exit.clicked.connect(self.close)
-        self.list_id = 1
 
     def save_task(self):
         if self.task_name.toPlainText() == "":
@@ -59,6 +67,18 @@ class ListCreation(QDialog):
                                       (self.task_time.time().hour(), self.task_time.time().minute()), self.list_id)
                     self.update_table()
 
+    def save_list(self):
+        if self.main_name.toPlainText() == "":
+            self.task_warning_label.setText("Введите название чек-листа")
+        else:
+            con = sqlite3.connect(DB_NAME)
+            cur = con.cursor()
+            cur.execute(
+                f'insert into {LISTS_TABLE_NAME} values ("{self.list_id}","{self.main_name}")')
+            con.commit()
+            self.closed = True
+            self.close()
+
     def add_new_task(self, name, description, time, list_id):
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
@@ -70,7 +90,7 @@ class ListCreation(QDialog):
         current_row = 0
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
-        cur.execute(f'SELECT * from {TASKS_TABLE_NAME}')
+        cur.execute(f'SELECT * from {TASKS_TABLE_NAME} WHERE list_id = {self.list_id}')
         for elem in cur:
             name = str(elem[0])
             description = str(elem[1])
