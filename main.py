@@ -16,18 +16,33 @@ class CheckList(QMainWindow):
         uic.loadUi('main.ui', self)
         self.update_table()
         self.btn_create_list.clicked.connect(self.create_list)
+        self.btn_update.clicked.connect(self.update_table)
+        self.tableWidget.cellDoubleClicked.connect(self.edit_list)
+        self.btn_start.clicked.connect(self.start_checking)
 
     def create_list(self):
-        try:
-            self.creation = ListCreation()
-            self.creation.exec()
+        global CURRENT_ID
+        cur = sqlite3.connect(DB_NAME).cursor()
+        CURRENT_ID = max([elem[0] for elem in cur.execute(f'SELECT ID from {LISTS_TABLE_NAME}')]) + 1
+        self.creation = ListCreation()
+        self.creation.exec()
 
-        except Exception as x:
-            print(x)
+    def edit_list(self, row):
+        global CURRENT_ID
+        row += 1
+        CURRENT_ID = row
+        self.creation = ListCreation()
+        con = sqlite3.connect(DB_NAME)
+        cur = con.cursor()
+        elem = [*cur.execute(
+            f'SELECT NAME from {LISTS_TABLE_NAME} where ID = {CURRENT_ID}')]
+        self.creation.main_name.setPlainText(elem[0][0])
+        self.creation.exec()
 
     def update_table(self):
         global CURRENT_ID
         current_row = 0
+        self.tableWidget.setRowCount(1)
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
         cur.execute(f'SELECT * from {LISTS_TABLE_NAME}')
@@ -37,7 +52,11 @@ class CheckList(QMainWindow):
                 self.tableWidget.insertRow(current_row)
             self.tableWidget.setItem(current_row, 0, QTableWidgetItem(name))
             current_row += 1
-        CURRENT_ID = max([elem[0] for elem in cur.execute(f'SELECT ID from {LISTS_TABLE_NAME}')]) + 1
+        self.list_number.setMaximum(current_row)
+
+    def start_checking(self):
+        global CURRENT_ID
+        CURRENT_ID = self.list_number.cleanText()
 
 
 class ListCreation(QDialog):
@@ -46,6 +65,7 @@ class ListCreation(QDialog):
         self.list_id = CURRENT_ID
         uic.loadUi("creation.ui", self)
         self.update_table()
+        self.btn_delete_list.clicked.connect(self.delete_list)
         self.btn_add_task.clicked.connect(self.save_task)
         self.btn_save_list.clicked.connect(self.save_list)
         self.btn_exit.clicked.connect(self.close)
@@ -74,7 +94,7 @@ class ListCreation(QDialog):
             con = sqlite3.connect(DB_NAME)
             cur = con.cursor()
             cur.execute(
-                f'insert into {LISTS_TABLE_NAME} values ("{self.list_id}","{self.main_name}")')
+                f'insert into {LISTS_TABLE_NAME} values ("{self.list_id}","{self.main_name.toPlainText()}")')
             con.commit()
             self.closed = True
             self.close()
@@ -86,11 +106,21 @@ class ListCreation(QDialog):
             f'insert into {TASKS_TABLE_NAME} values ("{str(name)}", "{str(description)}", "{str(time)}", "{list_id}")')
         con.commit()
 
+    def delete_list(self):
+        con = sqlite3.connect(DB_NAME)
+        cur = con.cursor()
+        cur.execute(
+            f'DELETE from {LISTS_TABLE_NAME} where ID = {CURRENT_ID}')
+        cur.execute(f'DELETE from {TASKS_TABLE_NAME} where list_id = {CURRENT_ID}')
+        con.commit()
+        self.close()
+
     def update_table(self):
         current_row = 0
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
         cur.execute(f'SELECT * from {TASKS_TABLE_NAME} WHERE list_id = {self.list_id}')
+        self.tableWidget.setRowCount(1)
         for elem in cur:
             name = str(elem[0])
             description = str(elem[1])
