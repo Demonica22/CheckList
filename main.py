@@ -1,4 +1,4 @@
-from PyQt5 import uic, QtCore
+from PyQt5 import uic, QtCore, QtWidgets
 from PyQt5.QtCore import QCoreApplication
 from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem, QMenu
 import sys
@@ -22,8 +22,6 @@ class CheckList(QMainWindow):
         self.tableWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tableWidget.customContextMenuRequested.connect(self.right_click_menu)
 
-        self.tableWidget.viewport().installEventFilter(self)
-
     def create_list(self):
         global CURRENT_ID
         cur = sqlite3.connect(DB_NAME).cursor()
@@ -31,16 +29,17 @@ class CheckList(QMainWindow):
         self.creation = ListCreation()
         self.creation.exec()
 
-    def edit_list(self, row):
+    def edit_list(self, row, column):
         global CURRENT_ID
-        row += 1
-        CURRENT_ID = row
+        text = self.tableWidget.item(row, column).text().strip()
         self.creation = ListCreation()
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
-        elem = [*cur.execute(
-            f'SELECT NAME from {LISTS_TABLE_NAME} where ID = {CURRENT_ID}')]
-        self.creation.main_name.setPlainText(elem[0][0])
+        cur.execute(f'SELECT * from {LISTS_TABLE_NAME}')
+        for elem in cur:
+            if elem[1] == text:
+                CURRENT_ID = int(elem[0])
+        self.creation.main_name.setPlainText(text)
         self.creation.exec()
 
     def update_table(self):
@@ -58,22 +57,19 @@ class CheckList(QMainWindow):
             current_row += 1
         self.list_number.setMaximum(current_row)
 
-    def eventFilter(self, source, event):
-        if (event.type() == QtCore.QEvent.MouseButtonPress and
-                event.buttons() == QtCore.Qt.RightButton and
-                source is self.tableWidget.viewport()):
-            item = self.tableWidget.itemAt(event.pos())
-            if item is not None:
-                self.menu = QMenu(self)
-                self.start_checking_action = self.menu.addAction("Начать выполнение")
-                self.menu.exec_(self.tableWidget.viewport().mapToGlobal(pos))
-        return super(CheckList, self).eventFilter(source, event)
-
     def right_click_menu(self, position):
-        self.menu.exec_(self.tableWidget.mapToGlobal(position))
+        item = self.tableWidget.itemAt(position)
+        if item is None:
+            return
+        menu = QtWidgets.QMenu()
+        start_checking_action = menu.addAction("Начать выполнение")
+        action = menu.exec_(self.tableWidget.viewport().mapToGlobal(position))
+        if action == start_checking_action:
+            self.start_checking()
 
     def start_checking(self):
         global CURRENT_ID
+        print("CHECK")
         CURRENT_ID = self.list_number.cleanText()
 
 
