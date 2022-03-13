@@ -1,6 +1,6 @@
-from PyQt5 import uic
+from PyQt5 import uic, QtCore
 from PyQt5.QtCore import QCoreApplication
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem, QMenu
 import sys
 import sqlite3
 
@@ -19,6 +19,10 @@ class CheckList(QMainWindow):
         self.btn_update.clicked.connect(self.update_table)
         self.tableWidget.cellDoubleClicked.connect(self.edit_list)
         self.btn_start.clicked.connect(self.start_checking)
+        self.tableWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.tableWidget.customContextMenuRequested.connect(self.right_click_menu)
+
+        self.tableWidget.viewport().installEventFilter(self)
 
     def create_list(self):
         global CURRENT_ID
@@ -53,6 +57,20 @@ class CheckList(QMainWindow):
             self.tableWidget.setItem(current_row, 0, QTableWidgetItem(name))
             current_row += 1
         self.list_number.setMaximum(current_row)
+
+    def eventFilter(self, source, event):
+        if (event.type() == QtCore.QEvent.MouseButtonPress and
+                event.buttons() == QtCore.Qt.RightButton and
+                source is self.tableWidget.viewport()):
+            item = self.tableWidget.itemAt(event.pos())
+            if item is not None:
+                self.menu = QMenu(self)
+                self.start_checking_action = self.menu.addAction("Начать выполнение")
+                self.menu.exec_(self.tableWidget.viewport().mapToGlobal(pos))
+        return super(CheckList, self).eventFilter(source, event)
+
+    def right_click_menu(self, position):
+        self.menu.exec_(self.tableWidget.mapToGlobal(position))
 
     def start_checking(self):
         global CURRENT_ID

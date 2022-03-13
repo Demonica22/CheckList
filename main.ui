@@ -27,7 +27,7 @@
      <bool>false</bool>
     </property>
     <property name="editTriggers">
-     <set>QAbstractItemView::SelectedClicked</set>
+     <set>QAbstractItemView::NoEditTriggers</set>
     </property>
     <property name="rowCount">
      <number>0</number>
@@ -75,6 +75,9 @@
       <bold>true</bold>
      </font>
     </property>
+    <property name="minimum">
+     <number>1</number>
+    </property>
     <property name="maximum">
      <number>1</number>
     </property>
@@ -120,6 +123,24 @@
     </property>
     <property name="text">
      <string>Начать выполнение</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="btn_update">
+    <property name="geometry">
+     <rect>
+      <x>130</x>
+      <y>580</y>
+      <width>111</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>8</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>Обновить список</string>
     </property>
    </widget>
   </widget>

@@ -16,17 +16,17 @@
   <property name="windowTitle">
    <string>Создание Чек листа</string>
   </property>
-  <widget class="QPushButton" name="btn_exit">
+  <widget class="QPushButton" name="btn_save_list">
    <property name="geometry">
     <rect>
-     <x>360</x>
+     <x>410</x>
      <y>850</y>
-     <width>229</width>
+     <width>261</width>
      <height>23</height>
     </rect>
    </property>
    <property name="text">
-    <string>Закрыть</string>
+    <string>Сохранить</string>
    </property>
   </widget>
   <widget class="QTextBrowser" name="main_name">
@@ -329,6 +329,37 @@
    </property>
    <property name="text">
     <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="btn_exit">
+   <property name="geometry">
+    <rect>
+     <x>890</x>
+     <y>850</y>
+     <width>261</width>
+     <height>23</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Закрыть</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="btn_delete_list">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>860</y>
+     <width>131</width>
+     <height>23</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: rgb(170, 0, 0);
+color: rgb(255, 255, 255);
+bold;</string>
+   </property>
+   <property name="text">
+    <string>Удалить Лист</string>
    </property>
   </widget>
  </widget>
