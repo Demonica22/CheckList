@@ -1,6 +1,6 @@
 from PyQt5 import uic, QtCore, QtWidgets
 from PyQt5.QtCore import QCoreApplication, QTimer, QTime, QThread
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem, QMenu
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem, QWidget
 import sys
 import sqlite3
 
@@ -32,10 +32,8 @@ class CheckList(QMainWindow):
         text = self.tableWidget.item(row, column).text().strip()
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
-        cur.execute(f'SELECT * from {LISTS_TABLE_NAME}')
-        for elem in cur:
-            if elem[1] == text:
-                self.current_id = int(elem[0])
+        cur.execute(f'SELECT ID from {LISTS_TABLE_NAME} where name = ?', (text,))
+        self.current_id = list(cur)[0][0]
         self.creation = ListCreation(self.current_id, editing=True)
         self.creation.main_name.setPlainText(text)
         self.creation.exec()
@@ -57,14 +55,19 @@ class CheckList(QMainWindow):
         item = self.tableWidget.itemAt(position)
         if item is None:
             return
-        menu = QtWidgets.QMenu()
-        start_checking_action = menu.addAction("Начать выполнение")
-        action = menu.exec_(self.tableWidget.viewport().mapToGlobal(position))
-        if action == start_checking_action:
-            self.start_checking()
+        con = sqlite3.connect(DB_NAME)
+        cur = con.cursor()
+        cur.execute(f'SELECT ID from {LISTS_TABLE_NAME} where name = ?', (item.text(),))
+        self.current_id = list(cur)[0][0]
+        cur.execute(f'SELECT * from {TASKS_TABLE_NAME} WHERE list_id = {self.current_id}')
+        if len(list(cur)) != 0:
+            menu = QtWidgets.QMenu()
+            start_checking_action = menu.addAction("Начать выполнение")
+            action = menu.exec_(self.tableWidget.viewport().mapToGlobal(position))
+            if action == start_checking_action:
+                self.start_checking()
 
     def start_checking(self):
-        print("CHECK")
         self.registration = RegistrationForm(list_id=self.current_id)
         self.registration.exec()
 
@@ -75,7 +78,8 @@ class ListCreation(QDialog):
         uic.loadUi("creation.ui", self)
         self.list_id = current_id
         self.editing = editing
-        self.tasks = []
+        self.old_tasks = []
+        self.new_tasks = []
         if self.editing:
             self.get_tasks_from_db()
         self.update_table()
@@ -118,7 +122,7 @@ class ListCreation(QDialog):
                 cur.execute(
                     f'insert into {LISTS_TABLE_NAME} values ("{self.list_id}","{self.main_name.toPlainText()}")')
             # saving all tasks
-            for elem in self.tasks:
+            for elem in self.new_tasks:
                 cur.execute(
                     f'insert into {TASKS_TABLE_NAME} values ("{elem[0]}", "{elem[1]}", "{elem[2]}", "{elem[3]}")')
 
@@ -126,7 +130,7 @@ class ListCreation(QDialog):
             self.close()
 
     def add_new_task(self, name, description, time, list_id):
-        self.tasks.append([str(name), str(description), (str(time)), list_id])
+        self.new_tasks.append([str(name), str(description), (str(time)), list_id])
 
     def delete_list(self):
         con = sqlite3.connect(DB_NAME)
@@ -141,14 +145,13 @@ class ListCreation(QDialog):
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
         cur.execute(f'SELECT * from {TASKS_TABLE_NAME} WHERE list_id = {self.list_id}')
-        self.tasks += list(cur)
-        cur.execute(f'DELETE from {TASKS_TABLE_NAME} WHERE list_id = {self.list_id}')
+        self.old_tasks += list(cur)
         con.commit()
 
     def update_table(self):
         current_row = 0
         self.tableWidget.setRowCount(1)
-        for elem in self.tasks:
+        for elem in self.old_tasks + self.new_tasks:
             name = str(elem[0])
             description = str(elem[1])
             time = list(eval(elem[2]))
@@ -176,11 +179,9 @@ class RegistrationForm(QDialog):
         if self.main_name.toPlainText() == "":
             self.warning_label.setText("Введите имя")
         else:
-            try:
-                self.checker = Checker(user_name=self.main_name.toPlainText(), list_id=self.list_id)
-                self.checker.exec()
-            except Exception as x:
-                print(x)
+            self.checker = Checker(user_name=self.main_name.toPlainText(), list_id=self.list_id)
+            self.checker.exec()
+            self.close()
 
 
 class Checker(QDialog):
@@ -190,11 +191,11 @@ class Checker(QDialog):
         self.current_task = 0
         self.user_name = user_name
         self.list_id = list_id
+        self.finished = False
+        self.start()
         self.btn_continue.clicked.connect(self.load_task)
 
-
     def update_task_time(self):
-
         self.time_label.setText()
 
     def start(self):
@@ -205,10 +206,32 @@ class Checker(QDialog):
         self.load_task()
 
     def load_task(self):
-        task = self.tasks[self.current_task]
-        self.task_name_label.setText(task[0])
-        self.task_description_label.setText(task[1])
-        self.current_task += 1
+        if self.finished:
+            try:
+                self.load_statistics()
+            except Exception as x:
+                print(x)
+            self.close()
+        elif self.current_task < len(self.tasks):
+            task = self.tasks[self.current_task]
+            self.task_name_label.setText(task[0])
+            self.task_description_label.setText(task[1])
+            self.current_task += 1
+        else:
+            self.label.setText("")
+            self.label_2.setText("")
+            self.label_3.setText("")
+            self.task_name_label.setText("")
+            self.task_description_label.setStyleSheet("color: rgb(0, 170, 0);")
+            self.task_description_label.setText("Вы завершили выполнение.\nНажмите продолжить для выхода\nв меню")
+            self.finished = True
+
+    def load_statistics(self):
+        con = sqlite3.connect(DB_NAME)
+        cur = con.cursor()
+        cur.execute(f'insert into {USERS_TABLE_NAME}(user_name,list_done) values (?,?)',
+                    (self.user_name, self.list_id,))
+        con.commit()
 
 
 app = QApplication(sys.argv)
