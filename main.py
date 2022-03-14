@@ -1,5 +1,5 @@
 from PyQt5 import uic, QtCore, QtWidgets
-from PyQt5.QtCore import QCoreApplication, QTime
+from PyQt5.QtCore import QCoreApplication, QTimer, QTime, QThread
 from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem, QMenu
 import sys
 import sqlite3
@@ -15,12 +15,12 @@ class CheckList(QMainWindow):
         super().__init__()
         uic.loadUi('main.ui', self)
         self.update_table()
+        self.current_id = 0
         self.btn_create_list.clicked.connect(self.create_list)
         self.btn_update.clicked.connect(self.update_table)
         self.tableWidget.cellDoubleClicked.connect(self.edit_list)
         self.tableWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tableWidget.customContextMenuRequested.connect(self.right_click_menu)
-        self.current_id = 0
 
     def create_list(self):
         cur = sqlite3.connect(DB_NAME).cursor()
@@ -65,19 +65,19 @@ class CheckList(QMainWindow):
 
     def start_checking(self):
         print("CHECK")
-        self.registration = RegistrationForm(list_number=self.current_id)
+        self.registration = RegistrationForm(list_id=self.current_id)
         self.registration.exec()
 
 
 class ListCreation(QDialog):
     def __init__(self, current_id, editing=False):
         super().__init__()
+        uic.loadUi("creation.ui", self)
         self.list_id = current_id
         self.editing = editing
         self.tasks = []
         if self.editing:
             self.get_tasks_from_db()
-        uic.loadUi("creation.ui", self)
         self.update_table()
         self.btn_delete_list.clicked.connect(self.delete_list)
         self.btn_add_task.clicked.connect(self.save_task)
@@ -166,27 +166,49 @@ class ListCreation(QDialog):
 
 
 class RegistrationForm(QDialog):
-    def __init__(self, list_number):
+    def __init__(self, list_id):
         super().__init__()
         uic.loadUi("registration.ui", self)
-        self.list_number = list_number
+        self.list_id = list_id
         self.btn_start.clicked.connect(self.start)
 
     def start(self):
         if self.main_name.toPlainText() == "":
-            print(1)
             self.warning_label.setText("Введите имя")
         else:
-            self.checker = Checker(user_name=self.main_name.toPlainText(), list_number=self.list_number)
-            self.checker.exec()
+            try:
+                self.checker = Checker(user_name=self.main_name.toPlainText(), list_id=self.list_id)
+                self.checker.exec()
+            except Exception as x:
+                print(x)
 
 
 class Checker(QDialog):
-    def __init__(self, user_name, list_number):
+    def __init__(self, user_name, list_id):
         super().__init__()
         uic.loadUi("checking.ui", self)
+        self.current_task = 0
         self.user_name = user_name
-        self.list_number = list_number
+        self.list_id = list_id
+        self.btn_continue.clicked.connect(self.load_task)
+
+
+    def update_task_time(self):
+
+        self.time_label.setText()
+
+    def start(self):
+        con = sqlite3.connect(DB_NAME)
+        cur = con.cursor()
+        cur.execute(f'SELECT * from {TASKS_TABLE_NAME} WHERE list_id = {self.list_id}')
+        self.tasks = list(cur)
+        self.load_task()
+
+    def load_task(self):
+        task = self.tasks[self.current_task]
+        self.task_name_label.setText(task[0])
+        self.task_description_label.setText(task[1])
+        self.current_task += 1
 
 
 app = QApplication(sys.argv)
