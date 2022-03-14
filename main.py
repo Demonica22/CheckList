@@ -1,5 +1,5 @@
 from PyQt5 import uic, QtCore, QtWidgets
-from PyQt5.QtCore import QCoreApplication
+from PyQt5.QtCore import QCoreApplication, QTime
 from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem, QMenu
 import sys
 import sqlite3
@@ -7,7 +7,7 @@ import sqlite3
 DB_NAME = "lists.db"
 TASKS_TABLE_NAME = "tasks"
 LISTS_TABLE_NAME = "lists"
-CURRENT_ID = 0
+USERS_TABLE_NAME = "users"
 
 
 class CheckList(QMainWindow):
@@ -18,32 +18,29 @@ class CheckList(QMainWindow):
         self.btn_create_list.clicked.connect(self.create_list)
         self.btn_update.clicked.connect(self.update_table)
         self.tableWidget.cellDoubleClicked.connect(self.edit_list)
-        self.btn_start.clicked.connect(self.start_checking)
         self.tableWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tableWidget.customContextMenuRequested.connect(self.right_click_menu)
+        self.current_id = 0
 
     def create_list(self):
-        global CURRENT_ID
         cur = sqlite3.connect(DB_NAME).cursor()
-        CURRENT_ID = max([elem[0] for elem in cur.execute(f'SELECT ID from {LISTS_TABLE_NAME}')]) + 1
-        self.creation = ListCreation()
+        self.current_id = max([elem[0] for elem in cur.execute(f'SELECT ID from {LISTS_TABLE_NAME}')]) + 1
+        self.creation = ListCreation(self.current_id)
         self.creation.exec()
 
     def edit_list(self, row, column):
-        global CURRENT_ID
         text = self.tableWidget.item(row, column).text().strip()
-        self.creation = ListCreation()
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
         cur.execute(f'SELECT * from {LISTS_TABLE_NAME}')
         for elem in cur:
             if elem[1] == text:
-                CURRENT_ID = int(elem[0])
+                self.current_id = int(elem[0])
+        self.creation = ListCreation(self.current_id, editing=True)
         self.creation.main_name.setPlainText(text)
         self.creation.exec()
 
     def update_table(self):
-        global CURRENT_ID
         current_row = 0
         self.tableWidget.setRowCount(1)
         con = sqlite3.connect(DB_NAME)
@@ -55,7 +52,6 @@ class CheckList(QMainWindow):
                 self.tableWidget.insertRow(current_row)
             self.tableWidget.setItem(current_row, 0, QTableWidgetItem(name))
             current_row += 1
-        self.list_number.setMaximum(current_row)
 
     def right_click_menu(self, position):
         item = self.tableWidget.itemAt(position)
@@ -68,15 +64,19 @@ class CheckList(QMainWindow):
             self.start_checking()
 
     def start_checking(self):
-        global CURRENT_ID
         print("CHECK")
-        CURRENT_ID = self.list_number.cleanText()
+        self.registration = RegistrationForm(list_number=self.current_id)
+        self.registration.exec()
 
 
 class ListCreation(QDialog):
-    def __init__(self):
+    def __init__(self, current_id, editing=False):
         super().__init__()
-        self.list_id = CURRENT_ID
+        self.list_id = current_id
+        self.editing = editing
+        self.tasks = []
+        if self.editing:
+            self.get_tasks_from_db()
         uic.loadUi("creation.ui", self)
         self.update_table()
         self.btn_delete_list.clicked.connect(self.delete_list)
@@ -99,6 +99,9 @@ class ListCreation(QDialog):
                     self.task_warning_label.setText("")
                     self.add_new_task(self.task_name.toPlainText(), self.description.toPlainText(),
                                       (self.task_time.time().hour(), self.task_time.time().minute()), self.list_id)
+                    self.task_name.setText("")
+                    self.description.setText("")
+                    self.task_time.setTime(QTime(0, 0))
                     self.update_table()
 
     def save_list(self):
@@ -107,35 +110,45 @@ class ListCreation(QDialog):
         else:
             con = sqlite3.connect(DB_NAME)
             cur = con.cursor()
-            cur.execute(
-                f'insert into {LISTS_TABLE_NAME} values ("{self.list_id}","{self.main_name.toPlainText()}")')
+            # saving list
+            if self.editing:
+                cur.execute(f'UPDATE {LISTS_TABLE_NAME} SET name = ? where ID = ?',
+                            (str(self.main_name.toPlainText().strip()), self.list_id))
+            else:
+                cur.execute(
+                    f'insert into {LISTS_TABLE_NAME} values ("{self.list_id}","{self.main_name.toPlainText()}")')
+            # saving all tasks
+            for elem in self.tasks:
+                cur.execute(
+                    f'insert into {TASKS_TABLE_NAME} values ("{elem[0]}", "{elem[1]}", "{elem[2]}", "{elem[3]}")')
+
             con.commit()
-            self.closed = True
             self.close()
 
     def add_new_task(self, name, description, time, list_id):
-        con = sqlite3.connect(DB_NAME)
-        cur = con.cursor()
-        cur.execute(
-            f'insert into {TASKS_TABLE_NAME} values ("{str(name)}", "{str(description)}", "{str(time)}", "{list_id}")')
-        con.commit()
+        self.tasks.append([str(name), str(description), (str(time)), list_id])
 
     def delete_list(self):
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
         cur.execute(
-            f'DELETE from {LISTS_TABLE_NAME} where ID = {CURRENT_ID}')
-        cur.execute(f'DELETE from {TASKS_TABLE_NAME} where list_id = {CURRENT_ID}')
+            f'DELETE from {LISTS_TABLE_NAME} where ID = {self.list_id}')
+        cur.execute(f'DELETE from {TASKS_TABLE_NAME} where list_id = {self.list_id}')
         con.commit()
         self.close()
 
-    def update_table(self):
-        current_row = 0
+    def get_tasks_from_db(self):
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
         cur.execute(f'SELECT * from {TASKS_TABLE_NAME} WHERE list_id = {self.list_id}')
+        self.tasks += list(cur)
+        cur.execute(f'DELETE from {TASKS_TABLE_NAME} WHERE list_id = {self.list_id}')
+        con.commit()
+
+    def update_table(self):
+        current_row = 0
         self.tableWidget.setRowCount(1)
-        for elem in cur:
+        for elem in self.tasks:
             name = str(elem[0])
             description = str(elem[1])
             time = list(eval(elem[2]))
@@ -150,6 +163,30 @@ class ListCreation(QDialog):
             self.tableWidget.setItem(current_row, 1, QTableWidgetItem(description))
             self.tableWidget.setItem(current_row, 2, QTableWidgetItem(time))
             current_row += 1
+
+
+class RegistrationForm(QDialog):
+    def __init__(self, list_number):
+        super().__init__()
+        uic.loadUi("registration.ui", self)
+        self.list_number = list_number
+        self.btn_start.clicked.connect(self.start)
+
+    def start(self):
+        if self.main_name.toPlainText() == "":
+            print(1)
+            self.warning_label.setText("Введите имя")
+        else:
+            self.checker = Checker(user_name=self.main_name.toPlainText(), list_number=self.list_number)
+            self.checker.exec()
+
+
+class Checker(QDialog):
+    def __init__(self, user_name, list_number):
+        super().__init__()
+        uic.loadUi("checking.ui", self)
+        self.user_name = user_name
+        self.list_number = list_number
 
 
 app = QApplication(sys.argv)
