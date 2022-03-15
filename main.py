@@ -10,6 +10,14 @@ LISTS_TABLE_NAME = "lists"
 USERS_TABLE_NAME = "users"
 
 
+def time_parser(time):
+    time = list(eval(time))
+    if len(str(time[0])) == 1:
+        time[0] = "0" + str(time[0])
+    if len(str(time[1])) == 1:
+        time[1] = "0" + str(time[1])
+    return f"{time[0]}:{time[1]}"
+
 class CheckList(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -154,12 +162,7 @@ class ListCreation(QDialog):
         for elem in self.old_tasks + self.new_tasks:
             name = str(elem[0])
             description = str(elem[1])
-            time = list(eval(elem[2]))
-            if len(str(time[0])) == 1:
-                time[0] = "0" + str(time[0])
-            if len(str(time[1])) == 1:
-                time[1] = "0" + str(time[1])
-            time = f"{time[0]}:{time[1]}"
+            time = time_parser(elem[2])
             if self.tableWidget.rowCount() <= current_row:
                 self.tableWidget.insertRow(current_row)
             self.tableWidget.setItem(current_row, 0, QTableWidgetItem(name))
@@ -195,8 +198,9 @@ class Checker(QDialog):
         self.start()
         self.btn_continue.clicked.connect(self.load_task)
 
-    def update_task_time(self):
-        self.time_label.setText()
+    def update_task_time(self,time):
+        time = time_parser(time)
+        self.time_label.setText(time)
 
     def start(self):
         con = sqlite3.connect(DB_NAME)
@@ -214,6 +218,7 @@ class Checker(QDialog):
             task = self.tasks[self.current_task]
             self.task_name_label.setText(task[0])
             self.task_description_label.setText(task[1])
+            self.update_task_time(task[2])
             self.current_task += 1
         else:
             self.label.setText("")
@@ -221,6 +226,7 @@ class Checker(QDialog):
             self.label_3.setText("")
             self.task_name_label.setText("")
             self.task_description_label.setStyleSheet("color: rgb(0, 170, 0);")
+            self.time_label.setText("")
             self.task_description_label.setText("Вы завершили выполнение.\nНажмите продолжить для выхода\nв меню")
             self.finished = True
 
