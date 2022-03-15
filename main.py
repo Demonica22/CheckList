@@ -3,12 +3,24 @@ from PyQt5.QtCore import QCoreApplication, QTimer, QTime, QThread
 from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem, QWidget
 import sys
 import sqlite3
+import time as t
 
 DB_NAME = "lists.db"
 TASKS_TABLE_NAME = "tasks"
 LISTS_TABLE_NAME = "lists"
 USERS_TABLE_NAME = "users"
 
+
+def timer_tic(time):
+    min, sec = map(int, time.split(":"))
+    if sec == 0 and min == 0:
+        return False
+    if sec > 0:
+        sec -= 1
+    else:
+        min -= 1
+        sec = 59
+    return time_parser(f"{(min, sec)}")
 
 def time_parser(time):
     time = list(eval(time))
@@ -195,12 +207,22 @@ class Checker(QDialog):
         self.user_name = user_name
         self.list_id = list_id
         self.finished = False
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.out_of_time)
         self.start()
         self.btn_continue.clicked.connect(self.load_task)
 
-    def update_task_time(self,time):
-        time = time_parser(time)
-        self.time_label.setText(time)
+    def update_task_time(self, time):
+        self.time = time_parser(time)
+        while True:
+            t.sleep(1)
+            if not timer_tic(self.time):
+                break
+            self.time = timer_tic(self.time)
+            self.time_label.setText(self.time)
+
+    def out_of_time(self):
+        print("You r out of time")
 
     def start(self):
         con = sqlite3.connect(DB_NAME)
@@ -218,8 +240,8 @@ class Checker(QDialog):
             task = self.tasks[self.current_task]
             self.task_name_label.setText(task[0])
             self.task_description_label.setText(task[1])
-            self.update_task_time(task[2])
             self.current_task += 1
+            self.update_task_time(task[2])
         else:
             self.label.setText("")
             self.label_2.setText("")
@@ -236,6 +258,17 @@ class Checker(QDialog):
         cur.execute(f'insert into {USERS_TABLE_NAME}(user_name,list_done) values (?,?)',
                     (self.user_name, self.list_id,))
         con.commit()
+
+
+class TimeData(QThread):
+    def __init__(self, time):
+        super().__init__(self)
+        self.time = time
+
+    def run(self):
+        while True:
+            t.sleep(1)
+            self.time += 1
 
 
 app = QApplication(sys.argv)
