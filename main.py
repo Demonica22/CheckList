@@ -206,11 +206,9 @@ class Checker(QDialog):
         self.load_task()
 
     def load_task(self):
+        self.progress_bar.setValue(int(self.current_task / len(self.tasks) * 100))
         if self.finished:
-            try:
-                self.load_statistics()
-            except Exception as x:
-                print(x)
+            self.load_statistics()
             self.close()
         elif self.current_task < len(self.tasks):
             task = self.tasks[self.current_task]
