@@ -214,12 +214,12 @@ class Checker(QDialog):
 
     def update_task_time(self, time):
         self.time = time_parser(time)
-        while True:
+        """while True:
             t.sleep(1)
             if not timer_tic(self.time):
                 break
-            self.time = timer_tic(self.time)
-            self.time_label.setText(self.time)
+            self.time = timer_tic(self.time)"""
+        self.time_label.setText(self.time)
 
     def out_of_time(self):
         print("You r out of time")
