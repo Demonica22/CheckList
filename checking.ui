@@ -128,7 +128,7 @@
      <x>10</x>
      <y>510</y>
      <width>151</width>
-     <height>31</height>
+     <height>71</height>
     </rect>
    </property>
    <property name="font">
@@ -140,6 +140,9 @@
    </property>
    <property name="text">
     <string/>
+   </property>
+   <property name="wordWrap">
+    <bool>true</bool>
    </property>
   </widget>
   <widget class="QLabel" name="label_3">

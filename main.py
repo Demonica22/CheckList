@@ -1,9 +1,10 @@
-from PyQt5 import uic, QtCore, QtWidgets
-from PyQt5.QtCore import QCoreApplication, QTimer, QTime, QThread
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem, QWidget
-import sys
+import datetime
 import sqlite3
-import time as t
+import sys
+
+from PyQt5 import uic, QtCore, QtWidgets
+from PyQt5.QtCore import QTimer, QTime, QDateTime
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QTableWidgetItem
 
 DB_NAME = "lists.db"
 TASKS_TABLE_NAME = "tasks"
@@ -11,24 +12,24 @@ LISTS_TABLE_NAME = "lists"
 USERS_TABLE_NAME = "users"
 
 
-def timer_tic(time):
-    min, sec = map(int, time.split(":"))
-    if sec == 0 and min == 0:
-        return False
-    if sec > 0:
-        sec -= 1
-    else:
-        min -= 1
-        sec = 59
-    return time_parser(f"{(min, sec)}")
+def time_in_secs(time):
+    time = list(map(int, time.split(":")))
+    time_in_seconds = 0
+    for i in range(-len(time), 0, 1):
+        time_in_seconds += time[i] * 60 ** abs(i + 1)
+    return time_in_seconds
 
-def time_parser(time):
+
+def time_parsing(time):  # return str from tuple  / (12,4) -> "12:04"
     time = list(eval(time))
-    if len(str(time[0])) == 1:
-        time[0] = "0" + str(time[0])
-    if len(str(time[1])) == 1:
-        time[1] = "0" + str(time[1])
-    return f"{time[0]}:{time[1]}"
+    result = []
+    for elem in time:
+        if len(str(elem)) == 1:
+            result.append("0" + str(elem))
+        else:
+            result.append(str(elem))
+    return ":".join(result)
+
 
 class CheckList(QMainWindow):
     def __init__(self):
@@ -174,7 +175,7 @@ class ListCreation(QDialog):
         for elem in self.old_tasks + self.new_tasks:
             name = str(elem[0])
             description = str(elem[1])
-            time = time_parser(elem[2])
+            time = time_parsing(elem[2])
             if self.tableWidget.rowCount() <= current_row:
                 self.tableWidget.insertRow(current_row)
             self.tableWidget.setItem(current_row, 0, QTableWidgetItem(name))
@@ -207,22 +208,30 @@ class Checker(QDialog):
         self.user_name = user_name
         self.list_id = list_id
         self.finished = False
+        self.out_of_time = False
         self.timer = QTimer()
-        self.timer.timeout.connect(self.out_of_time)
+        self.timer.timeout.connect(self.show_time)
+        self.timer.start(100)
         self.start()
         self.btn_continue.clicked.connect(self.load_task)
 
-    def update_task_time(self, time):
-        self.time = time_parser(time)
-        """while True:
-            t.sleep(1)
-            if not timer_tic(self.time):
-                break
-            self.time = timer_tic(self.time)"""
-        self.time_label.setText(self.time)
-
-    def out_of_time(self):
-        print("You r out of time")
+    def show_time(self):
+        if self.finished:
+            self.time_label.setText("")
+        elif not self.out_of_time:
+            current_timer_left = (self.current_task_duration - time_in_secs(
+                QDateTime.currentDateTime().toString('mm:ss')) + self.task_start_time)
+            if current_timer_left <= 0:
+                self.out_of_time = True
+                self.time_label.setText("Вы не успели выполнить задание по времени!")
+            else:
+                if 0.5 < current_timer_left / self.current_task_duration <= 1:
+                    self.time_label.setStyleSheet("color: rgb(0, 170, 0);")
+                elif 0.25 < current_timer_left / self.current_task_duration <= 0.5:
+                    self.time_label.setStyleSheet("color: rgb(218, 202, 64);")
+                else:
+                    self.time_label.setStyleSheet("color: rgb(255, 0, 0);")
+                self.time_label.setText(str(datetime.timedelta(seconds=current_timer_left))[2:])
 
     def start(self):
         con = sqlite3.connect(DB_NAME)
@@ -232,6 +241,8 @@ class Checker(QDialog):
         self.load_task()
 
     def load_task(self):
+        self.task_start_time = time_in_secs(QDateTime.currentDateTime().toString('mm:ss'))
+        self.out_of_time = False
         self.progress_bar.setValue(int(self.current_task / len(self.tasks) * 100))
         if self.finished:
             self.load_statistics()
@@ -241,7 +252,7 @@ class Checker(QDialog):
             self.task_name_label.setText(task[0])
             self.task_description_label.setText(task[1])
             self.current_task += 1
-            self.update_task_time(task[2])
+            self.current_task_duration = time_in_secs(time_parsing(task[2]))
         else:
             self.label.setText("")
             self.label_2.setText("")
@@ -258,17 +269,6 @@ class Checker(QDialog):
         cur.execute(f'insert into {USERS_TABLE_NAME}(user_name,list_done) values (?,?)',
                     (self.user_name, self.list_id,))
         con.commit()
-
-
-class TimeData(QThread):
-    def __init__(self, time):
-        super().__init__(self)
-        self.time = time
-
-    def run(self):
-        while True:
-            t.sleep(1)
-            self.time += 1
 
 
 app = QApplication(sys.argv)
