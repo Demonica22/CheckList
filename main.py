@@ -34,14 +34,14 @@ def time_parsing(time):  # return str from tuple  / (12,4) -> "12:04"
 class CheckList(QMainWindow):
     def __init__(self):
         super().__init__()
-        uic.loadUi('main.ui', self)
+        uic.loadUi('ui_forms/main.ui', self)
         self.update_table()
         self.current_id = 0
         self.btn_create_list.clicked.connect(self.create_list)
         self.btn_update.clicked.connect(self.update_table)
-        self.tableWidget.cellDoubleClicked.connect(self.edit_list)
-        self.tableWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.tableWidget.customContextMenuRequested.connect(self.right_click_menu)
+        self.lists_table.cellDoubleClicked.connect(self.edit_list)
+        self.lists_table.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.lists_table.customContextMenuRequested.connect(self.right_click_menu)
 
     def create_list(self):
         cur = sqlite3.connect(DB_NAME).cursor()
@@ -50,30 +50,41 @@ class CheckList(QMainWindow):
         self.creation.exec()
 
     def edit_list(self, row, column):
-        text = self.tableWidget.item(row, column).text().strip()
+        text1 = self.lists_table.item(row, column).text().strip()
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
-        cur.execute(f'SELECT ID from {LISTS_TABLE_NAME} where name = ?', (text,))
+        cur.execute(f'SELECT ID from {LISTS_TABLE_NAME} where name = ?', (text1,))
         self.current_id = list(cur)[0][0]
         self.creation = ListCreation(self.current_id, editing=True)
-        self.creation.main_name.setPlainText(text)
+        self.creation.main_name.setPlainText(text1)
         self.creation.exec()
 
     def update_table(self):
         current_row = 0
-        self.tableWidget.setRowCount(1)
+        self.lists_table.setRowCount(1)
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
         cur.execute(f'SELECT * from {LISTS_TABLE_NAME}')
         for elem in cur:
             name = str(elem[1])
-            if self.tableWidget.rowCount() <= current_row:
-                self.tableWidget.insertRow(current_row)
-            self.tableWidget.setItem(current_row, 0, QTableWidgetItem(name))
+            if self.lists_table.rowCount() <= current_row:
+                self.lists_table.insertRow(current_row)
+            self.lists_table.setItem(current_row, 0, QTableWidgetItem(name))
+            current_row += 1
+        cur.execute(f'SELECT * from {USERS_TABLE_NAME}')
+        current_row = 0
+        self.tasks_table.setRowCount(1)
+        for elem in cur:
+            name = elem[1]
+            lists_done = elem[2]
+            if self.tasks_table.rowCount() <= current_row:
+                self.tasks_table.insertRow(current_row)
+            self.tasks_table.setItem(current_row, 0, QTableWidgetItem(name))
+            self.tasks_table.setItem(current_row, 1, QTableWidgetItem(lists_done))
             current_row += 1
 
     def right_click_menu(self, position):
-        item = self.tableWidget.itemAt(position)
+        item = self.lists_table.itemAt(position)
         if item is None:
             return
         con = sqlite3.connect(DB_NAME)
@@ -84,7 +95,7 @@ class CheckList(QMainWindow):
         if len(list(cur)) != 0:
             menu = QtWidgets.QMenu()
             start_checking_action = menu.addAction("Начать выполнение")
-            action = menu.exec_(self.tableWidget.viewport().mapToGlobal(position))
+            action = menu.exec_(self.lists_table.viewport().mapToGlobal(position))
             if action == start_checking_action:
                 self.start_checking()
 
@@ -96,7 +107,7 @@ class CheckList(QMainWindow):
 class ListCreation(QDialog):
     def __init__(self, current_id, editing=False):
         super().__init__()
-        uic.loadUi("creation.ui", self)
+        uic.loadUi("ui_forms/creation.ui", self)
         self.list_id = current_id
         self.editing = editing
         self.old_tasks = []
@@ -118,12 +129,12 @@ class ListCreation(QDialog):
                 self.task_warning_label.setText("Введите описание задания")
             else:
                 self.task_warning_label.setText("")
-                if self.task_time.time().hour() == 0 and self.task_time.time().minute() == 0:
+                if self.task_time.time().minute() == 0 and self.task_time.time().second() == 0:
                     self.task_warning_label.setText("Введите время на выполнение задания")
                 else:
                     self.task_warning_label.setText("")
                     self.add_new_task(self.task_name.toPlainText(), self.description.toPlainText(),
-                                      (self.task_time.time().hour(), self.task_time.time().minute()), self.list_id)
+                                      (self.task_time.time().minute(), self.task_time.time().second()), self.list_id)
                     self.task_name.setText("")
                     self.description.setText("")
                     self.task_time.setTime(QTime(0, 0))
@@ -171,23 +182,23 @@ class ListCreation(QDialog):
 
     def update_table(self):
         current_row = 0
-        self.tableWidget.setRowCount(1)
+        self.tasks_table.setRowCount(1)
         for elem in self.old_tasks + self.new_tasks:
             name = str(elem[0])
             description = str(elem[1])
             time = time_parsing(elem[2])
-            if self.tableWidget.rowCount() <= current_row:
-                self.tableWidget.insertRow(current_row)
-            self.tableWidget.setItem(current_row, 0, QTableWidgetItem(name))
-            self.tableWidget.setItem(current_row, 1, QTableWidgetItem(description))
-            self.tableWidget.setItem(current_row, 2, QTableWidgetItem(time))
+            if self.tasks_table.rowCount() <= current_row:
+                self.tasks_table.insertRow(current_row)
+            self.tasks_table.setItem(current_row, 0, QTableWidgetItem(name))
+            self.tasks_table.setItem(current_row, 1, QTableWidgetItem(description))
+            self.tasks_table.setItem(current_row, 2, QTableWidgetItem(time))
             current_row += 1
 
 
 class RegistrationForm(QDialog):
     def __init__(self, list_id):
         super().__init__()
-        uic.loadUi("registration.ui", self)
+        uic.loadUi("ui_forms/registration.ui", self)
         self.list_id = list_id
         self.btn_start.clicked.connect(self.start)
 
@@ -203,7 +214,7 @@ class RegistrationForm(QDialog):
 class Checker(QDialog):
     def __init__(self, user_name, list_id):
         super().__init__()
-        uic.loadUi("checking.ui", self)
+        uic.loadUi("ui_forms/checking.ui", self)
         self.current_task = 0
         self.user_name = user_name
         self.list_id = list_id
@@ -266,8 +277,16 @@ class Checker(QDialog):
     def load_statistics(self):
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
-        cur.execute(f'insert into {USERS_TABLE_NAME}(user_name,list_done) values (?,?)',
-                    (self.user_name, self.list_id,))
+        cur.execute(f'SELECT * from {USERS_TABLE_NAME} WHERE user_name = ?', (self.user_name,))
+        users = [elem for elem in cur]
+        if users != []:
+            user_id = users[0][0]
+            user_lists_done = str(users[0][2]).split(",") + [str(self.list_id)]
+            cur.execute(f'UPDATE {USERS_TABLE_NAME} SET lists_done = ? where ID = ?',
+                        (",".join(user_lists_done), user_id,))
+        else:
+            cur.execute(f'insert into {USERS_TABLE_NAME}(user_name,lists_done) values (?,?)',
+                        (self.user_name, str(self.list_id),))
         con.commit()
 
 
