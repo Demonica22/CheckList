@@ -75,13 +75,14 @@ class CheckList(QMainWindow):
         current_row = 0
         self.tasks_table.setRowCount(1)
         for elem in cur:
-            name = elem[1]
-            lists_done = elem[2]
-            if self.tasks_table.rowCount() <= current_row:
-                self.tasks_table.insertRow(current_row)
-            self.tasks_table.setItem(current_row, 0, QTableWidgetItem(name))
-            self.tasks_table.setItem(current_row, 1, QTableWidgetItem(lists_done))
-            current_row += 1
+            if elem[3] == QDateTime.currentDateTime().toString("dd.MM.yyyy"):
+                name = elem[1]
+                lists_done = str(elem[2])
+                if self.tasks_table.rowCount() <= current_row:
+                    self.tasks_table.insertRow(current_row)
+                self.tasks_table.setItem(current_row, 0, QTableWidgetItem(name))
+                self.tasks_table.setItem(current_row, 1, QTableWidgetItem(lists_done))
+                current_row += 1
 
     def right_click_menu(self, position):
         item = self.lists_table.itemAt(position)
@@ -281,12 +282,15 @@ class Checker(QDialog):
         users = [elem for elem in cur]
         if users != []:
             user_id = users[0][0]
-            user_lists_done = str(users[0][2]).split(",") + [str(self.list_id)]
-            cur.execute(f'UPDATE {USERS_TABLE_NAME} SET lists_done = ? where ID = ?',
-                        (",".join(user_lists_done), user_id,))
+            if users[0][3] == QDateTime.currentDateTime().toString("dd.MM.yyyy"):
+                user_lists_done = str(users[0][2]).split(",") + [str(self.list_id)]
+            else:
+                user_lists_done = [str(self.list_id)]
+            cur.execute(f'UPDATE {USERS_TABLE_NAME} SET lists_done = ?, date=? where ID = ?',
+                        (",".join(user_lists_done), QDateTime.currentDateTime().toString("dd.MM.yyyy"), user_id,))
         else:
-            cur.execute(f'insert into {USERS_TABLE_NAME}(user_name,lists_done) values (?,?)',
-                        (self.user_name, str(self.list_id),))
+            cur.execute(f'insert into {USERS_TABLE_NAME}(user_name,lists_done,date) values (?,?,?)',
+                        (self.user_name, str(self.list_id), QDateTime.currentDateTime().toString("dd.MM.yyyy"),))
         con.commit()
 
 
