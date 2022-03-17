@@ -77,12 +77,19 @@ class CheckList(QMainWindow):
         for elem in cur:
             if elem[3] == QDateTime.currentDateTime().toString("dd.MM.yyyy"):
                 name = elem[1]
-                lists_done = str(elem[2])
+                lists_done = str(elem[2]).split(",")
+                name_of_done_lists = []
+                for elem in lists_done:
+                    con = sqlite3.connect(DB_NAME)
+                    cur = con.cursor()
+                    cur.execute(f'SELECT name from {LISTS_TABLE_NAME} where ID=?', (elem,))
+                    name_of_done_lists.append(*list(cur)[0])
                 if self.tasks_table.rowCount() <= current_row:
                     self.tasks_table.insertRow(current_row)
                 self.tasks_table.setItem(current_row, 0, QTableWidgetItem(name))
-                self.tasks_table.setItem(current_row, 1, QTableWidgetItem(lists_done))
+                self.tasks_table.setItem(current_row, 1, QTableWidgetItem(",".join(name_of_done_lists)))
                 current_row += 1
+        self.tasks_table.resizeColumnsToContents()
 
     def right_click_menu(self, position):
         item = self.lists_table.itemAt(position)
@@ -254,7 +261,7 @@ class Checker(QDialog):
                 QDateTime.currentDateTime().toString('mm:ss')) + self.task_start_time)
             if current_timer_left <= 0:
                 self.out_of_time = True
-                self.time_label.setText("Вы не успели выполнить задание по времени!")
+                self.time_label.setText("Вы не успели выполнить задание вовремя!")
             else:
                 if 0.5 < current_timer_left / self.current_task_duration <= 1:
                     self.time_label.setStyleSheet("color: rgb(0, 170, 0);")
