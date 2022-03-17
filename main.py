@@ -50,13 +50,13 @@ class CheckList(QMainWindow):
         self.creation.exec()
 
     def edit_list(self, row, column):
-        text1 = self.lists_table.item(row, column).text().strip()
+        text = self.lists_table.item(row, column).text().strip()
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
-        cur.execute(f'SELECT ID from {LISTS_TABLE_NAME} where name = ?', (text1,))
+        cur.execute(f'SELECT ID from {LISTS_TABLE_NAME} where name = ?', (text,))
         self.current_id = list(cur)[0][0]
         self.creation = ListCreation(self.current_id, editing=True)
-        self.creation.main_name.setPlainText(text1)
+        self.creation.main_name.setPlainText(text)
         self.creation.exec()
 
     def update_table(self):
@@ -117,6 +117,7 @@ class ListCreation(QDialog):
             self.get_tasks_from_db()
         self.update_table()
         self.btn_delete_list.clicked.connect(self.delete_list)
+        self.tasks_table.cellDoubleClicked.connect(self.remove_task)
         self.btn_add_task.clicked.connect(self.save_task)
         self.btn_save_list.clicked.connect(self.save_list)
         self.btn_exit.clicked.connect(self.close)
@@ -140,6 +141,24 @@ class ListCreation(QDialog):
                     self.description.setText("")
                     self.task_time.setTime(QTime(0, 0))
                     self.update_table()
+
+    def remove_task(self, row, column):
+        name = self.tasks_table.item(row, column).text().strip()
+        for i in range(len(self.old_tasks)):
+            if name in self.old_tasks[i]:
+                list_id = self.old_tasks[i][3]
+                con = sqlite3.connect(DB_NAME)
+                cur = con.cursor()
+                cur.execute(
+                    f'DELETE from {TASKS_TABLE_NAME} where name = ? and list_id = ? ', (name, list_id,))
+                con.commit()
+                self.old_tasks.pop(i)
+                return
+        for i in range(len(self.new_tasks)):
+            if name in self.new_tasks[i]:
+                self.new_tasks.pop(i)
+                return
+        self.update_table()
 
     def save_list(self):
         if self.main_name.toPlainText() == "":
